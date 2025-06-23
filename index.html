@@ -1,0 +1,183 @@
+<!-- Save this as index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Read & Type - Phase 1</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #f4f9f9;
+      padding: 20px;
+      text-align: center;
+    }
+    a.logo-link img {
+      width: 150px;
+      margin-bottom: 20px;
+    }
+    .controls {
+      margin-bottom: 20px;
+    }
+    .toggle-speech {
+      font-size: 14px;
+    }
+    .word-display .uppercase-word {
+      font-size: 36px;
+      font-weight: bold;
+    }
+    .word-display .lowercase-word {
+      font-size: 18px;
+      color: #666;
+      margin-bottom: 10px;
+    }
+    .initial-letter {
+      font-size: 80px;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+    .initial-letter.incorrect {
+      color: red;
+    }
+    #image {
+      width: 200px;
+      height: 200px;
+      margin-bottom: 10px;
+      object-fit: contain;
+      border: 2px solid #ccc;
+      background: white;
+    }
+    .prompt {
+      font-size: 20px;
+      margin-bottom: 10px;
+    }
+    input[type="text"] {
+      font-size: 24px;
+      padding: 10px;
+      width: 100px;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .feedback {
+      font-size: 20px;
+      margin-bottom: 10px;
+      height: 30px;
+    }
+    .symbol-output {
+      margin-top: 10px;
+      font-size: 64px;
+      height: 80px;
+    }
+  </style>
+</head>
+<body>
+  <a href="https://www.talkinginpictures.co.uk" class="logo-link" target="_blank">
+    <img src="https://www.talkinginpictures.co.uk/tip-logo.png" alt="Talking In Pictures Logo">
+  </a>
+
+  <div class="controls">
+    <label class="toggle-speech">
+      <input type="checkbox" id="speechToggle" checked> Enable speech prompts
+    </label>
+  </div>
+
+  <div class="word-display" id="wordDisplay">
+    <div class="uppercase-word"></div>
+    <div class="lowercase-word"></div>
+  </div>
+  <div class="initial-letter" id="initialLetter"></div>
+  <img id="image" src="" alt="Word image" />
+  <div class="prompt" id="prompt">&nbsp;</div>
+  <input type="text" id="answer" maxlength="1" autofocus autocomplete="off" />
+  <div class="feedback" id="feedback"></div>
+  <div class="symbol-output" id="symbol"></div>
+
+  <script>
+    const wordSet1 = [...]; // populate with your word objects
+    const wordSet2 = [...];
+    const combinedList = [...wordSet1, ...wordSet2];
+    const validWordList = [];
+    let current = 0;
+
+    const imageEl = document.getElementById("image");
+    const feedbackEl = document.getElementById("feedback");
+    const answerEl = document.getElementById("answer");
+    const symbolEl = document.getElementById("symbol");
+    const wordDisplayEl = document.getElementById("wordDisplay");
+    const uppercaseEl = wordDisplayEl.querySelector(".uppercase-word");
+    const lowercaseEl = wordDisplayEl.querySelector(".lowercase-word");
+    const initialEl = document.getElementById("initialLetter");
+    const promptEl = document.getElementById("prompt");
+    const speechToggle = document.getElementById("speechToggle");
+
+    function updateDisplays(word, incorrect = false) {
+      uppercaseEl.textContent = word.toUpperCase();
+      lowercaseEl.textContent = word.toLowerCase();
+      const letter = word.charAt(0).toUpperCase();
+      initialEl.textContent = letter;
+      initialEl.className = incorrect ? 'initial-letter incorrect' : 'initial-letter';
+    }
+
+    function speakPrompt(word) {
+      if (!speechToggle.checked) return;
+      const utterance = new SpeechSynthesisUtterance(`What letter does ${word.toUpperCase()} begin with?`);
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(utterance);
+    }
+
+    function loadWord(index) {
+      if (index >= validWordList.length) return;
+      const { word } = validWordList[index];
+      updateDisplays(word);
+      imageEl.src = validWordList[index].image;
+      feedbackEl.textContent = "";
+      symbolEl.textContent = "";
+      promptEl.textContent = `What letter does ${word.toUpperCase()} begin with?`;
+      answerEl.value = "";
+      speakPrompt(word);
+    }
+
+    answerEl.addEventListener("input", () => {
+      const entry = validWordList[current];
+      const typed = answerEl.value.toLowerCase();
+      if (typed === entry.letter) {
+        feedbackEl.textContent = "✅ Well done!";
+        symbolEl.textContent = entry.symbol + " = " + entry.word;
+        setTimeout(() => {
+          current = (current + 1) % validWordList.length;
+          loadWord(current);
+        }, 1500);
+      } else {
+        feedbackEl.textContent = "❌ Try again";
+        updateDisplays(entry.word, true);
+      }
+    });
+
+    async function fetchARASAAC(word) {
+      const url = `https://api.arasaac.org/api/pictograms/en/search/${encodeURIComponent(word)}`;
+      try {
+        const resp = await fetch(url);
+        const data = await resp.json();
+        if (data.length) return `https://static.arasaac.org/pictograms/${data[0]._id}/${data[0]._id}_300.png`;
+      } catch (e) { console.warn(e); }
+      return null;
+    }
+
+    async function preload() {
+      for (const item of combinedList) {
+        const url = await fetchARASAAC(item.word);
+        if (url) {
+          const img = new Image();
+          img.onload = () => validWordList.push({ ...item, image: url });
+          img.onerror = () => {};
+          img.src = url;
+        }
+      }
+      if (validWordList.length) loadWord(0);
+      else feedbackEl.textContent = "⚠️ No images loaded.";
+    }
+
+    preload();
+  </script>
+</body>
+</html>
